@@ -1,0 +1,23 @@
+CMP_ERROR CMP_API  CMP_ProcessTexture(CMP_MipSet* srcMipSet, CMP_MipSet* dstMipSet, KernelOptions kernelOptions, CMP_Feedback_Proc pFeedbackProc);
+CMP_ERROR CMP_API  CMP_CompressTexture(KernelOptions* options, CMP_MipSet srcMipSet, CMP_MipSet dstMipSet, CMP_Feedback_Proc pFeedback);
+
+纹理处理
+提供两种纹理处理 API。
+
+CMP_ProcessTexture 是一个更高级别的调用，它建立了一个完整的框架，并支持通过 MIP 级别处理生成的纹理。该 API 使用替代框架 API 和 CMP_ProcessTexture。
+
+CMP_CompressTexture 是一个低级别访问 API，用户可以用它来设置处理纹理。默认处理使用Compressonator Core编解码器和CPU框架。
+
+Texture Processing
+Two types of texture processing API are provided.
+
+CMP_ProcessTexture is a higher level call that sets up a complete framework and supports textures generated with mip level processing. this api uses the alternate framework API’s and CMP_ProcessTexture.
+
+CMP_CompressTexture is a lower level access API that users can use to setup processing textures. By default processing uses the Compressonator Core codecs with a CPU framework.
+
+
+
+CMP_ERROR CMP_API CMP_ConvertTexture(CMP_Texture*               pSourceTexture,
+                                     CMP_Texture*               pDestTexture,
+                                     const CMP_CompressOptions* pOptions,
+                                     CMP_Feedback_Proc          pFeedbackProc);

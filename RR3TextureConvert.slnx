@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="RR3TextureConvert.vcxproj" Id="a844d3a8-56d1-435b-b03b-73d1986d5fbe" />
+</Solution>
