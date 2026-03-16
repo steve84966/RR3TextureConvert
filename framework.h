@@ -11,7 +11,11 @@
 
 #include<iostream>
 #include<string>
+#include<string_view>
+#include<format>
 #include<vector>
+#include<utility>//pair
+//#include<tuple>
 #include<memory>
 #include<algorithm>
 
