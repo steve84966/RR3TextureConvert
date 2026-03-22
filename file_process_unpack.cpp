@@ -36,6 +36,71 @@ std::wstring Helper::ErrorMessageToWstring(DWORD nCode)
 	return str;
 }
 
+bool Helper::CreatePathFromFileName(const std::wstring& p)
+{
+	auto re = p.find_last_of(L'\\');
+	if (re != std::wstring::npos) {
+		auto directory = p.substr(0, re);
+
+		// 逐级创建目录
+		size_t currentPos = 0;
+		BOOL re2 = false;
+		while (true)
+		{
+			size_t nextPos = directory.find_first_of(L"\\/", currentPos);
+			if (nextPos == std::wstring::npos)
+			{
+				// 最后一级目录
+				if (!CreateDirectoryW(directory.c_str(), NULL) &&
+					GetLastError() != ERROR_ALREADY_EXISTS)
+				{
+					return false;
+				}
+				else {
+					return true;
+				}
+			}
+			else
+			{
+				// 中间级目录
+				std::wstring subDir = directory.substr(0, nextPos);
+				auto re1 = CreateDirectoryW(subDir.c_str(), NULL);
+
+				if (!re1) {
+					auto re2 = GetLastError();
+					switch (re2) {
+					case ERROR_ALREADY_EXISTS:
+					{
+						;//nothing happen...
+					}
+					break;
+					case ERROR_ACCESS_DENIED:
+					{
+
+						size_t Pos = directory.find_first_of(L"\\/", 0);
+						if (Pos == nextPos) {
+							//first path like "R:\\", so nothing happen and continue...
+						}
+						else {
+							return false;
+						}
+					}
+					break;
+					default:
+						return false;
+						break;
+					}
+				}
+				currentPos = nextPos + 1;
+			}
+		}
+	}
+	else
+	{
+		return false;
+	}
+}
+
 void Helper::printconsole(const std::wstring& s)
 {
 	auto len = s.length();
@@ -82,7 +147,17 @@ bool DataManiger::WriteToFile(LPCWSTR path) const
 	}
 	HANDLE hFile = CreateFileW(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (hFile == INVALID_HANDLE_VALUE) {
-		return false;
+		if (GetLastError() == ERROR_PATH_NOT_FOUND) {
+			if (Helper::CreatePathFromFileName(std::wstring(path))) {
+				hFile = CreateFileW(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+				if (hFile == INVALID_HANDLE_VALUE) {
+					return false;
+				}
+			}
+		}
+		else {
+			return false;
+		}
 	}
 	DWORD _;
 	auto re = WriteFile(hFile, this->GetPtr(), (DWORD)this->GetLen(), &_, NULL);
@@ -95,13 +170,59 @@ bool DataManiger::WriteToFile(LPCWSTR path) const
 
 void Pack::process_filter(const wchar_t* full, const wchar_t* base, const wchar_t* relative)
 {
+#if _DEBUG
+	Helper::printconsole(std::wstring_view(L"\t["));
+	Helper::printconsole(full);
+	Helper::printconsole(std::wstring_view(L"]\n"));
+#endif
+
+	auto fullpath = (std::wstring)full;
+	auto basepath = (std::wstring)base;
 	auto relativepath = (std::wstring)relative;
+
+	//return "basepath" + "_dxt"
+	auto GetDxtPath = [](const std::wstring& basepath)->std::wstring {
+		auto lpwstr = DataManiger((basepath.size() + 32) * sizeof(wchar_t));
+		auto strbuffer = (wchar_t*)lpwstr.GetPtr();
+		auto strbufferlen = (basepath.size() + 32);
+		wcscpy(strbuffer, basepath.c_str());
+		PathCchRemoveBackslash(strbuffer, strbufferlen);
+		wcscat(strbuffer, L"_dxt");
+		PathCchAddBackslash(strbuffer, strbufferlen);
+		return std::wstring(strbuffer);
+		};
+
+	auto LinkFile = [&GetDxtPath](const std::wstring& rawfullpath, const std::wstring& basepath, const std::wstring& relativepath) -> void {
+		auto outpath = GetDxtPath(basepath) + relativepath;
+		auto re = CreateHardLinkW(outpath.c_str(), rawfullpath.c_str(), NULL);
+		if (!re) {
+			if (GetLastError() == ERROR_PATH_NOT_FOUND) {
+				auto re2 = Helper::CreatePathFromFileName(outpath);
+				if (re2) {
+					re = CreateHardLinkW(outpath.c_str(), rawfullpath.c_str(), NULL);
+				}
+			}
+		}
+		if (re) {
+			Helper::printconsole(std::format(L"File [{}] Make Hard Link to [{}]\n", rawfullpath, outpath));
+		}
+		else {
+			auto er = GetLastError();
+			if (er != ERROR_ALREADY_EXISTS) {
+				Helper::printconsole(std::format(L"Failed to Make Hard Link Form [{}] to [{}], Code {}\n", rawfullpath, outpath, GetLastError()));
+			}
+			else
+			{
+				Helper::printconsole(std::format(L"File [{}] Already Exists.\n", outpath));
+			}
+
+		}
+		};
 	if (relativepath.rfind(inType) == std::wstring::npos) {
+		LinkFile(fullpath, basepath, relativepath);
 		return;
 	}
-	auto fullpath = (std::wstring)full;
 
-	auto basepath = (std::wstring)base;
 
 	auto GetNewRelativePath =
 		[](const std::wstring& outType, const std::wstring& relativepath)->std::wstring {
@@ -120,18 +241,19 @@ void Pack::process_filter(const wchar_t* full, const wchar_t* base, const wchar_
 		return;
 		};
 
-	auto SaveFileAndoutput = [&GetNewRelativePath](const DataManiger& data, const std::wstring& basepath, const std::wstring& relativepath, const std::wstring& oType)->void {
-		auto outpath = basepath + GetNewRelativePath(oType, relativepath);
+	auto SaveFileAndoutput = [&GetNewRelativePath, &GetDxtPath](const DataManiger& data, const std::wstring& basepath, const std::wstring& relativepath, const std::wstring& oType)->void {
+		auto outpath = GetDxtPath(basepath) + GetNewRelativePath(oType, relativepath);
 		if (data.WriteToFile(outpath.c_str())) {
 			Helper::printconsole(std::format(L"Convert and save file [{}]\n", outpath));
 			return;
 		}
 		else
 		{
-			Helper::printconsole(std::format(L"Failed to save file [{}]\n", outpath));
+			Helper::printconsole(std::format(L"Failed to save file [{}]. Code{}\n", outpath, GetLastError()));
 			return;
 		}
 		};
+
 
 	HANDLE hFile = CreateFileW(fullpath.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (hFile == INVALID_HANDLE_VALUE) {
@@ -286,12 +408,8 @@ void Pack::process_filter(const wchar_t* full, const wchar_t* base, const wchar_
 	}
 	else
 	{
-		Helper::printconsole(L"File [");
-		Helper::printconsole(fullpath);
-		Helper::printconsole(L"] Make Hard Link to [");
+		LinkFile(fullpath, basepath, relativepath);
 
-		Helper::printconsole(L"null");
-		Helper::printconsole(L"]\n");
 	}
 }
 
@@ -660,6 +778,117 @@ DataManiger Converter::rgb_a2dxt(const DataManiger& rgb_a_buffer, const DirectX:
 	CMP_CompressOptions opt = { 0 };
 	opt.dwSize = sizeof(opt);
 	opt.bDisableMultiThreading = true;
+	opt.fquality = 0.01;
+
+	uint8_t* srcptr;
+	DataManiger dataexc;
+	if (!bHasAlpha) {
+		dataexc = DataManiger(rgb_a_buffer.GetLen());
+		memcpy(dataexc.GetPtr(), rgb_a_buffer.GetPtr(), rgb_a_buffer.GetLen());
+		// dont ask me why... I also want to konw why cmp sdk works like this...
+		// I do make sure dds2rgba is all same with rgb/rgba, witch is r/b order reversed with cv.
+		Helper::RBChannelExchange(dataexc.pData, dataexc.GetLen(), bHasAlpha);
+		srcptr = dataexc.GetPtr();
+	}
+	else {
+		srcptr = rgb_a_buffer.GetPtr();
+	}
+
+	auto dstptr = re.GetPtr() + 128;
+
+	auto _w = w, _h = h;
+
+	for (uint32_t i = 0; i != mipLevel; ++i) {
+		Src.dwWidth = _w;
+		Src.dwHeight = _h;
+		Src.dwDataSize = (size_t)_w * _h * elemetsize;
+		Src.pData = srcptr;
+
+
+		Dst.dwWidth = _w;
+		Dst.dwHeight = _h;
+		Dst.dwDataSize = CMP_CalculateBufferSize(&Dst);
+		Dst.pData = dstptr;
+
+		CMP_ConvertTexture(&Src, &Dst, &opt, 0);
+		_w /= 2;
+		_h /= 2;
+		srcptr += Src.dwDataSize;
+		dstptr += Dst.dwDataSize;
+		if ((_w | _h) == 0) {
+			break;
+		}
+	}
+	memcpy(re.GetPtr(), &magicNum, 4);
+	memcpy(re.GetPtr() + 4, &header, 124);
+	return re;
+}
+DataManiger Converter::rgb_a2atc(const DataManiger& rgb_a_buffer, const DirectX::DDS_HEADER* pRawHeader, uint32_t w, uint32_t h, uint32_t mipLevel, uint8_t bHasAlpha)
+{
+	//TODO:ChangeCode.
+	uint32_t magicNum = 0x20534444;
+	DirectX::DDS_HEADER header = { 0 };
+	if (pRawHeader) {
+		memcpy(&header, pRawHeader, sizeof(header));
+		header.size = sizeof(header);
+		header.flags |= DDS_HEADER_FLAGS_LINEARSIZE;
+		auto& headerpf = header.ddspf;
+		headerpf = ((bHasAlpha ? DirectX::DDSPF_DXT5 : DirectX::DDSPF_DXT1));
+		//overwrite
+		if (w == 0) {
+			w = header.width;
+		}
+		if (h == 0)
+		{
+			h = header.height;
+		}
+		if (mipLevel == 0)
+		{
+			mipLevel = header.mipMapCount;
+		}
+	}
+	else {
+		constexpr uint32_t ddsflag = DDS_HEADER_FLAGS_TEXTURE | DDS_HEADER_FLAGS_MIPMAP | DDS_HEADER_FLAGS_LINEARSIZE;
+		static_assert(ddsflag == 0xA1007);
+		header.flags = ddsflag;
+		header.height = h;
+		header.width = w;
+		header.pitchOrLinearSize = -1;//TODO: do it when CalcBufferSize.
+		header.depth = 0;
+		header.mipMapCount = mipLevel;
+		header.reserved1;
+		auto& headerpf = header.ddspf;
+		headerpf = ((bHasAlpha ? DirectX::DDSPF_DXT5 : DirectX::DDSPF_DXT1));
+		header.caps = DDS_SURFACE_FLAGS_MIPMAP | DDS_SURFACE_FLAGS_TEXTURE;
+		header.caps2 = 0;//wait! mabe copy from src is a good choice.
+	}
+	size_t elemetsize = bHasAlpha ? 4 : 3;
+	CMP_Texture Dst = { 0 };
+	Dst.dwSize = sizeof(Dst);
+	Dst.format = bHasAlpha ? CMP_FORMAT_DXT5 : CMP_FORMAT_DXT1;
+	Dst.dwWidth = w;
+	Dst.dwHeight = h;
+	Dst.dwDataSize = CMP_CalculateBufferSize(&Dst);
+	header.pitchOrLinearSize = Dst.dwDataSize;
+
+	size_t totalsize = 128;
+	for (uint32_t i = 0; i != mipLevel; ++i) {
+		auto _w = w / uint32_t(std::pow(2, i));
+		auto _h = h / uint32_t(std::pow(2, i));
+		Dst.dwWidth = _w;
+		Dst.dwHeight = _h;
+		Dst.dwDataSize = CMP_CalculateBufferSize(&Dst);
+		totalsize += Dst.dwDataSize;
+	}
+
+	CMP_Texture Src = { 0 };
+	Src.dwSize = sizeof(Src);
+	Src.format = bHasAlpha ? CMP_FORMAT_RGBA_8888 : CMP_FORMAT_BGR_888;
+	DataManiger re(totalsize);
+
+	CMP_CompressOptions opt = { 0 };
+	opt.dwSize = sizeof(opt);
+	opt.bDisableMultiThreading = true;
 	opt.fquality = 0.1;
 
 	uint8_t* srcptr;
@@ -704,6 +933,7 @@ DataManiger Converter::rgb_a2dxt(const DataManiger& rgb_a_buffer, const DirectX:
 	memcpy(re.GetPtr(), &magicNum, 4);
 	memcpy(re.GetPtr() + 4, &header, 124);
 	return re;
+	return DataManiger();
 }
 DataManiger Converter::rgba4_to_rgba8(const uint8_t* data, size_t size)
 {

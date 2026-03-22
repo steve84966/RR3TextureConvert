@@ -21,7 +21,7 @@ public:
 
 	static ByteFlow CreateBuffer(size_t sz) { assert(sz != 0); return std::make_unique<uint8_t[]>(sz); }
 
-	DataManiger() = default;
+	DataManiger() :pData(nullptr), lenth(0) {};
 	DataManiger(size_t sz) {
 		this->pData = std::make_unique<uint8_t[]>(sz);
 		this->lenth = sz;
@@ -108,6 +108,9 @@ public:
 	//return DXT1 without alpha, DXT5 with alpha.
 	//with full DDS_HEADER(128 bytes)
 	static DataManiger rgb_a2dxt(const DataManiger& rgb_a_buffer, const DirectX::DDS_HEADER* pRawHeader, uint32_t w, uint32_t h, uint32_t mipLevel, uint8_t bHasAlpha);
+	//retur atc/atci
+	//with full DDS_HEADER
+	static DataManiger rgb_a2atc(const DataManiger& rgb_a_buffer, const DirectX::DDS_HEADER* pHeader, uint32_t w, uint32_t h, uint32_t miplevel, uint8_t bHasAlpha);
 private:
 	static DataManiger rgba4_to_rgba8(const uint8_t* data, size_t size);
 	static DataManiger rgba8_to_rgba4(const uint8_t* data, size_t size);
@@ -129,7 +132,11 @@ public:
 	//修改文件名(类型)
 	static bool ChangeFileExtention(std::wstring& io, const std::wstring& src, const std::wstring& dst);
 
+	//WINAPI: GetLastError->String
 	static std::wstring ErrorMessageToWstring(DWORD nCode);
+
+	//WINAPI: ERROR_PATH_NOT_FOUND (3)
+	static bool CreatePathFromFileName(const std::wstring& p);
 
 	static constexpr std::wstring_view CreateView(const wchar_t*p) {
 		return std::wstring_view(p);
