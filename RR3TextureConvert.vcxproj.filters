@@ -24,6 +24,12 @@
     <ClCompile Include="FileMapping.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="help.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="DataMan.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ListAllFiles.h">
@@ -39,6 +45,12 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="DDS.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="help.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="DataMan.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

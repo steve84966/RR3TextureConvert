@@ -1,10 +1,11 @@
-﻿#include"framework.h"
-#include <iostream>
+﻿#include "framework.h"
 #include "ListAllFiles.h"
 #include "file_process_unpack.h"
 
 std::wstring inType;
 std::vector<std::wstring> outTypes;
+std::wstring inDir;
+std::vector<std::wstring> outDirs;
 
 int wmain(int c,wchar_t** v)
 {

@@ -131,15 +131,19 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="DataMan.cpp" />
     <ClCompile Include="FileMapping.cpp" />
     <ClCompile Include="file_process_unpack.cpp" />
+    <ClCompile Include="help.cpp" />
     <ClCompile Include="RR3TextureConvert.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="DataMan.h" />
     <ClInclude Include="DDS.h" />
     <ClInclude Include="FileMapping.h" />
     <ClInclude Include="file_process_unpack.h" />
     <ClInclude Include="framework.h" />
+    <ClInclude Include="help.h" />
     <ClInclude Include="ListAllFiles.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

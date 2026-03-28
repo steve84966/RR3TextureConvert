@@ -3,170 +3,8 @@
 //setting modle make sure it's value
 extern std::wstring inType;
 extern std::vector<std::wstring> outTypes;
-
-void Helper::printconsole(const wchar_t* s)
-{
-	auto len = wcslen(s);
-	DWORD _;
-	WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), s, len, &_, NULL);
-	return;
-}
-
-bool Helper::ChangeFileExtention(std::wstring& io, const std::wstring& src, const std::wstring& dst)
-{
-	std::wstring path = io;
-	auto pos = path.find(src);
-	if (pos == std::wstring::npos) {
-		return false;
-	}
-	path.replace(pos, dst.size(), dst);
-	return true;
-}
-
-std::wstring Helper::ErrorMessageToWstring(DWORD nCode)
-{
-	std::unique_ptr<wchar_t[]> buffer = std::make_unique<wchar_t[]>(32768);
-	auto re = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM, 0, nCode, 0, buffer.get(), 32768, 0);
-	if (re == 0) {
-		auto err = GetLastError();
-		assert(printf("%d", err) && false);
-		return std::wstring();
-	}
-	std::wstring str(buffer.get(), re);
-	return str;
-}
-
-bool Helper::CreatePathFromFileName(const std::wstring& p)
-{
-	auto re = p.find_last_of(L'\\');
-	if (re != std::wstring::npos) {
-		auto directory = p.substr(0, re);
-
-		// 逐级创建目录
-		size_t currentPos = 0;
-		BOOL re2 = false;
-		while (true)
-		{
-			size_t nextPos = directory.find_first_of(L"\\/", currentPos);
-			if (nextPos == std::wstring::npos)
-			{
-				// 最后一级目录
-				if (!CreateDirectoryW(directory.c_str(), NULL) &&
-					GetLastError() != ERROR_ALREADY_EXISTS)
-				{
-					return false;
-				}
-				else {
-					return true;
-				}
-			}
-			else
-			{
-				// 中间级目录
-				std::wstring subDir = directory.substr(0, nextPos);
-				auto re1 = CreateDirectoryW(subDir.c_str(), NULL);
-
-				if (!re1) {
-					auto re2 = GetLastError();
-					switch (re2) {
-					case ERROR_ALREADY_EXISTS:
-					{
-						;//nothing happen...
-					}
-					break;
-					case ERROR_ACCESS_DENIED:
-					{
-
-						size_t Pos = directory.find_first_of(L"\\/", 0);
-						if (Pos == nextPos) {
-							//first path like "R:\\", so nothing happen and continue...
-						}
-						else {
-							return false;
-						}
-					}
-					break;
-					default:
-						return false;
-						break;
-					}
-				}
-				currentPos = nextPos + 1;
-			}
-		}
-	}
-	else
-	{
-		return false;
-	}
-}
-
-void Helper::printconsole(const std::wstring& s)
-{
-	auto len = s.length();
-	DWORD _;
-	WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), s.data(), len, &_, NULL);
-	return;
-}
-void Helper::printconsole(const std::wstring_view& s)
-{
-	auto len = s.length();
-	DWORD _;
-	WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), s.data(), len, &_, NULL);
-	return;
-}
-
-void DataManiger::DumpToFile(LPCWSTR path) const
-{
-#ifdef _DEBUG
-	assert(this->GetPtr() != nullptr);
-	DWORD err;
-	HANDLE hFile = CreateFileW(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-	err = GetLastError();
-	assert(hFile != INVALID_HANDLE_VALUE);
-	assert(this->lenth < MAXDWORD);
-	DWORD _;
-	auto re = WriteFile(hFile, this->pData.get(), this->lenth, &_, NULL);
-	err = GetLastError();
-	assert(re);
-	assert(_ == this->lenth);
-	CloseHandle(hFile);
-	return;
-#endif
-}
-
-bool DataManiger::WriteToFile(LPCWSTR path) const
-{
-	if (!this->GetPtr()) {
-		SetLastError(ERROR_NO_MORE_ITEMS);
-		return false;
-	}
-	if (this->GetLen() > MAXDWORD) {
-		SetLastError(ERROR_MORE_DATA);
-		return false;
-	}
-	HANDLE hFile = CreateFileW(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-	if (hFile == INVALID_HANDLE_VALUE) {
-		if (GetLastError() == ERROR_PATH_NOT_FOUND) {
-			if (Helper::CreatePathFromFileName(std::wstring(path))) {
-				hFile = CreateFileW(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-				if (hFile == INVALID_HANDLE_VALUE) {
-					return false;
-				}
-			}
-		}
-		else {
-			return false;
-		}
-	}
-	DWORD _;
-	auto re = WriteFile(hFile, this->GetPtr(), (DWORD)this->GetLen(), &_, NULL);
-	CloseHandle(hFile);
-	if (!re || _ != this->GetLen()) {
-		return false;
-	}
-	return true;
-}
+extern std::wstring inDir;
+extern std::vector<std::wstring> outDirs;
 
 void Pack::process_filter(const wchar_t* full, const wchar_t* base, const wchar_t* relative)
 {
@@ -265,7 +103,7 @@ void Pack::process_filter(const wchar_t* full, const wchar_t* base, const wchar_
 		Helper::printconsole((wchar_t*)tmp);
 		return;
 	}
-	HandleWarpper closefile(hFile);
+	Helper::HandleWarpper closefile(hFile);
 
 	if (relativepath.ends_with(L".z.bin")) {
 		auto pData = Helper::ReadAll(hFile);
@@ -507,47 +345,6 @@ DataManiger Pack::zlib_z_c(const DataManiger& pData)
 	return DataManiger(std::move(f), sz + 4);
 }
 
-DataManiger Helper::ReadAll(HANDLE hFile)
-{
-	LARGE_INTEGER FileSize;
-	if (hFile == INVALID_HANDLE_VALUE) {
-		return DataManiger();
-	}
-	GetFileSizeEx(hFile, &FileSize);
-	size_t readsize = FileSize.QuadPart;
-
-	DWORD _;
-	LARGE_INTEGER FileSize2;
-	FileSize2.QuadPart = 0;
-	SetFilePointerEx(hFile, FileSize2, NULL, FILE_BEGIN);
-	if (readsize > MAXDWORD) {
-		SetLastError(ERROR_FILE_TOO_LARGE);
-		return DataManiger();
-	}
-	auto f = std::make_unique<uint8_t[]>(readsize + 4);
-	auto re = ReadFile(hFile, f.get(), (DWORD)readsize, &_, NULL);
-	if (re != 0) {
-		return DataManiger(std::move(f), _);
-	}
-	else
-	{
-		return DataManiger();
-	}
-
-}
-
-void Helper::RBChannelExchange(DataManiger::ByteFlow& rgb_a_flow, size_t sz, uint8_t bHasAlpha)
-{
-	auto ptr = rgb_a_flow.get();
-	size_t elemsize = bHasAlpha ? 4 : 3;
-	auto pixnum = sz / elemsize;
-	for (size_t i = 0; i != pixnum; ++i) {
-		std::swap(ptr[0], ptr[2]);
-		ptr += elemsize;
-	}
-	return;
-}
-
 DataManiger Converter::dds2rgb_a(const DataManiger& etcfile, uint32_t& w, uint32_t& h, uint32_t& mipLevel, uint8_t& bHasAlpha)
 {
 	DataManiger re;
@@ -761,13 +558,14 @@ DataManiger Converter::rgb_a2dxt(const DataManiger& rgb_a_buffer, const DirectX:
 	header.pitchOrLinearSize = Dst.dwDataSize;
 
 	size_t totalsize = 128;
+	auto _w = w, _h = h;
 	for (uint32_t i = 0; i != mipLevel; ++i) {
-		auto _w = w / uint32_t(std::pow(2, i));
-		auto _h = h / uint32_t(std::pow(2, i));
 		Dst.dwWidth = _w;
 		Dst.dwHeight = _h;
 		Dst.dwDataSize = CMP_CalculateBufferSize(&Dst);
 		totalsize += Dst.dwDataSize;
+		_w = std::max(1u, _w / 2);
+		_h = std::max(1u, _h / 2);
 	}
 
 	CMP_Texture Src = { 0 };
@@ -798,22 +596,42 @@ DataManiger Converter::rgb_a2dxt(const DataManiger& rgb_a_buffer, const DirectX:
 
 	auto _w = w, _h = h;
 
+	//修复<4x4时偏色的情况：扩展至4x4随后压缩
+	//大概是SDK的bug？或者特性？
+	std::unique_ptr<uint8_t[]> rgbadata = nullptr;
+	auto cv_type = bHasAlpha ? CV_8UC4 : CV_8UC3;
+	cv::Mat rgbDataExtend;
+	cv::Mat rgbDataView;
+
 	for (uint32_t i = 0; i != mipLevel; ++i) {
-		Src.dwWidth = _w;
-		Src.dwHeight = _h;
-		Src.dwDataSize = (size_t)_w * _h * elemetsize;
-		Src.pData = srcptr;
+		auto __w = _w < 4 ? 4 : _w;
+		auto __h = _h < 4 ? 4 : _h;
+		auto bReExtend = _w < 4 || _h < 4;
 
+		Src.dwWidth = __w;
+		Src.dwHeight = __h;
+		Src.dwDataSize = (size_t)__w * __h * elemetsize;	
+		if (bReExtend) {
+			rgbadata = std::make_unique<uint8_t[]>(__w * __h * elemetsize);
+			rgbDataView = cv::Mat(_h, _w, cv_type, srcptr);
+			rgbDataExtend = cv::Mat(__h, __w, cv_type, rgbadata.get());
+			Helper::ExtendTexture(rgbDataView, rgbDataExtend);
+			Src.pData = rgbadata.get();
+		}
+		else
+		{
+			Src.pData = srcptr;
+		}
 
-		Dst.dwWidth = _w;
-		Dst.dwHeight = _h;
+		Dst.dwWidth = __w;
+		Dst.dwHeight = __h;
 		Dst.dwDataSize = CMP_CalculateBufferSize(&Dst);
 		Dst.pData = dstptr;
 
 		CMP_ConvertTexture(&Src, &Dst, &opt, 0);
-		_w /= 2;
-		_h /= 2;
-		srcptr += Src.dwDataSize;
+		_w = std::max(1u, _w / 2);
+		_h = std::max(1u, _h / 2);
+		srcptr += _w * _h * elemetsize;//Src.dwDataSize;
 		dstptr += Dst.dwDataSize;
 		if ((_w | _h) == 0) {
 			break;
@@ -872,13 +690,14 @@ DataManiger Converter::rgb_a2atc(const DataManiger& rgb_a_buffer, const DirectX:
 	header.pitchOrLinearSize = Dst.dwDataSize;
 
 	size_t totalsize = 128;
+	auto _w = w, _h = h;
 	for (uint32_t i = 0; i != mipLevel; ++i) {
-		auto _w = w / uint32_t(std::pow(2, i));
-		auto _h = h / uint32_t(std::pow(2, i));
 		Dst.dwWidth = _w;
 		Dst.dwHeight = _h;
 		Dst.dwDataSize = CMP_CalculateBufferSize(&Dst);
 		totalsize += Dst.dwDataSize;
+		_w = std::max(1u, _w / 2);
+		_h = std::max(1u, _h / 2);
 	}
 
 	CMP_Texture Src = { 0 };
